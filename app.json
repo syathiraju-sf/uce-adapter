@@ -1,0 +1,25 @@
+{
+  "name": "fps-api-client",
+  "description": "FPS API Client - Heroku service for accessing FPS performance data",
+  "repository": "https://github.com/your-username/fps-api-client",
+  "keywords": ["python", "flask", "fps", "api", "performance"],
+  "image": "heroku/python",
+  "stack": "heroku-22",
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "env": {
+    "FLASK_ENV": {
+      "description": "Flask environment",
+      "value": "production"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  }
+}
