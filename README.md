@@ -1,24 +1,25 @@
-# UCE Adapter - Test Run Executor
+# UCE Adapter - FPS Test Executor
 
-A Flask web service for submitting test runs to different testing frameworks (FPS and RAFI).
+A simple, focused Heroku service that submits FPS tests using `authtoken` and `test_payload` parameters.
 
-## Features
+## 🎯 Features
 
-- REST API for submitting tests to FPS framework
-- REST API for submitting tests to RAFI framework (placeholder)
-- Health check endpoint
-- Error handling and validation
-- Ready for Heroku deployment
+- ✅ Single API endpoint: `/api/v1/execute`
+- ✅ Takes 2 inputs: `authtoken` and `test_payload`
+- ✅ Submits HTTP requests to FPS API
+- ✅ Comprehensive logging with request tracking
+- ✅ SSL verification disabled (equivalent to curl -k)
+- ✅ Ready for Heroku deployment
 
-## API Endpoints
+## 📡 API Endpoints
 
 ### Health Check
 ```
 GET /
 ```
-Returns service health status and available endpoints.
+Returns service health status and usage instructions.
 
-### 🎯 Main Execute Endpoint (Recommended)
+### 🎯 Execute FPS Test
 ```
 POST /api/v1/execute
 Content-Type: application/json
@@ -26,45 +27,45 @@ Content-Type: application/json
 {
   "authtoken": "your_bearer_token",
   "test_payload": {
-    "test_name": "sample_test",
-    "test_config": {
+    "testName": "performance_test",
+    "testConfig": {
       "duration": "5m",
-      "users": 10
+      "users": 50,
+      "rampUp": "1m"
     }
-  },
-  "framework": "fps"  // optional, defaults to "fps"
+  }
 }
 ```
 
 **Response:**
 ```json
 {
+  "request_id": "abc123-def456-ghi789",
+  "timestamp": "2023-12-07T10:30:00.000Z",
   "status": "success",
-  "status_code": 200,
-  "response": {
-    // FPS API response data
+  "execution_time_ms": 1234,
+  "result": {
+    "status": "success",
+    "status_code": 200,
+    "response": {
+      // FPS API response data
+    }
   }
 }
 ```
 
-### Submit FPS Test (Direct)
-```
-POST /api/v1/submit/fps
-Content-Type: application/json
-
+**Error Response:**
+```json
 {
-  "test_payload": {...},
-  "authtoken": "your_bearer_token"
-}
-```
-
-### Submit RAFI Test (Direct)
-```
-POST /api/v1/submit/rafi
-Content-Type: application/json
-
-{
-  "test_payload": {...}
+  "request_id": "abc123-def456-ghi789",
+  "timestamp": "2023-12-07T10:30:00.000Z",
+  "status": "error",
+  "execution_time_ms": 567,
+  "result": {
+    "status": "error",
+    "error": "Authentication failed",
+    "status_code": 401
+  }
 }
 ```
 
@@ -75,14 +76,18 @@ Content-Type: application/json
 # Health check
 curl -X GET https://your-app.herokuapp.com/
 
-# Execute test with authtoken and test_payload
+# Execute FPS test
 curl -X POST https://your-app.herokuapp.com/api/v1/execute \
   -H "Content-Type: application/json" \
   -d '{
     "authtoken": "your_bearer_token",
     "test_payload": {
-      "test_name": "performance_test",
-      "config": {"users": 50, "duration": "10m"}
+      "testName": "load_test",
+      "testConfig": {
+        "duration": "10m",
+        "users": 100,
+        "rampUp": "2m"
+      }
     }
   }'
 ```
@@ -91,12 +96,18 @@ curl -X POST https://your-app.herokuapp.com/api/v1/execute \
 ```python
 import requests
 
-# Your test data
+# Your test configuration
 data = {
     "authtoken": "your_bearer_token",
     "test_payload": {
-        "test_name": "load_test",
-        "config": {"users": 100}
+        "testName": "performance_test",
+        "testConfig": {
+            "duration": "5m",
+            "users": 50,
+            "rampUp": "1m",
+            "target": "https://api.example.com"
+        },
+        "metrics": ["response_time", "throughput"]
     }
 }
 
@@ -106,7 +117,10 @@ response = requests.post(
     json=data
 )
 
-print(response.json())
+result = response.json()
+print(f"Request ID: {result.get('request_id')}")
+print(f"Status: {result.get('status')}")
+print(f"Execution Time: {result.get('execution_time_ms')}ms")
 ```
 
 ## Local Development
@@ -179,36 +193,43 @@ To view logs:
 heroku logs --tail
 ```
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 .
-├── app.py                 # Main Flask application with REST API
-├── testrunexecutor.py     # Test execution logic (FPS/RAFI)
-├── test_service.py        # Test script for service validation
-├── requirements.txt       # Python dependencies
-├── Procfile              # Heroku process definition
-├── runtime.txt           # Python version specification
-├── app.json              # Heroku app configuration
-├── .gitignore            # Git ignore patterns
-└── README.md             # This file
+├── app.py                    # 🐍 Main Flask application with FPS API logic
+├── test_fps_service.py       # 🧪 Test script with examples
+├── requirements.txt          # 📦 Python dependencies
+├── Procfile                 # ⚙️  Heroku process definition
+├── runtime.txt              # 🐍 Python version specification
+├── app.json                 # 📋 Heroku app configuration
+├── .gitignore               # 🚫 Git ignore patterns
+└── README.md                # 📖 This file
 ```
 
-## Testing the Service
+## 🧪 Testing the Service
 
 ### Local Testing:
 ```bash
 # Start the service
 python app.py
 
-# In another terminal, run tests
-python test_service.py
+# In another terminal, test it
+python test_fps_service.py
 ```
 
-### Test with real data:
-Replace the example values in `test_service.py` with your actual:
-- `authtoken`: Your bearer token for FPS API
-- `test_payload`: Your actual test configuration
+### Configure for your environment:
+Edit `test_fps_service.py` and replace:
+- `authtoken`: Your actual bearer token for FPS API
+- `test_payload`: Your actual test configuration data
+- `base_url`: Change to your Heroku URL when deployed
+
+## 🔑 Important Notes
+
+- **SSL Verification**: Disabled (equivalent to `curl -k`) for compatibility
+- **Authentication**: Uses `bearer` token in Authorization header
+- **FPS Endpoint**: `https://performance.sfproxy.core1.perf1-useast2.aws.sfdc.cl/api/v1/perfruns`
+- **Logging**: Comprehensive request tracking with unique request IDs
 
 ## Dependencies
 

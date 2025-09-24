@@ -6,206 +6,233 @@ import os
 from flask import Flask, request, jsonify
 import json
 import logging
+import uuid
+from datetime import datetime
+import requests
 
-# Import the TestRunExecutor from the same directory
-from testrunexecutor import TestRunExecutor
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging for Heroku
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+
+# Disable SSL warnings for Heroku deployment
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
-# Initialize the TestRunExecutor
-executor = TestRunExecutor()
+def submit_fps_test(test_payload, authtoken):
+    """
+    Submit test to FPS framework.
+    
+    Args:
+        test_payload (dict): The test payload prepared for FPS framework
+        authtoken (str): Authentication token for FPS framework
+        
+    Returns:
+        dict: Response from FPS test submission
+    """
+    try:
+        # FPS API endpoint
+        url = "https://performance.sfproxy.core1.perf1-useast2.aws.sfdc.cl/api/v1/perfruns"
+        
+        # Headers
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"bearer {authtoken}"
+        }
+        
+        # Make POST request with SSL verification disabled (equivalent to -k flag)
+        response = requests.post(
+            url=url,
+            headers=headers,
+            json=test_payload,
+            verify=False  # Equivalent to curl -k flag
+        )
+        
+        # Check if request was successful
+        response.raise_for_status()
+        
+        # Return JSON response
+        return {
+            "status": "success",
+            "status_code": response.status_code,
+            "response": response.json()
+        }
+        
+    except requests.exceptions.RequestException as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "status_code": getattr(e.response, 'status_code', None) if hasattr(e, 'response') else None
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": f"Unexpected error: {str(e)}"
+        }
 
 @app.route('/')
 def health_check():
     """Health check endpoint."""
     return jsonify({
         "status": "healthy",
-        "service": "UCE Adapter - Test Run Executor",
-        "version": "1.0.0",
+        "service": "UCE Adapter - FPS Test Executor",
+        "version": "2.0.0",
+        "description": "Heroku service to submit FPS tests with authtoken and test_payload",
         "endpoints": {
-            "fps_test": "/api/v1/submit/fps",
-            "rafi_test": "/api/v1/submit/rafi",
-            "execute_test": "/api/v1/execute"
+            "health": "/",
+            "execute_fps": "/api/v1/execute"
+        },
+        "usage": {
+            "method": "POST",
+            "url": "/api/v1/execute",
+            "payload": {
+                "authtoken": "your_bearer_token",
+                "test_payload": {"your": "test_data"}
+            }
         }
     })
 
 @app.route('/api/v1/execute', methods=['POST'])
 def execute_test():
     """
-    Main endpoint to execute test with authtoken and test_payload.
+    🎯 Execute FPS Test with authtoken and test_payload
     
     Expected JSON payload:
     {
         "authtoken": "your_bearer_token",
         "test_payload": {
-            // Your test configuration
-        },
-        "framework": "fps" // optional, defaults to "fps"
+            // Your FPS test configuration
+        }
     }
     
     Returns:
     {
+        "request_id": "uuid",
+        "timestamp": "2023-...",
         "status": "success" | "error",
-        "status_code": 200,
-        "response": {...} | "error": "error message"
+        "execution_time_ms": 1234,
+        "result": {...}
     }
     """
+    # Generate unique request ID for tracking
+    request_id = str(uuid.uuid4())
+    start_time = datetime.now()
+    
+    logger.info(f"🚀 [REQUEST:{request_id}] FPS Execute API called")
+    
     try:
-        # Get JSON data from request
+        # Parse request data
         data = request.get_json()
+        logger.info(f"📥 [REQUEST:{request_id}] Received request data")
         
         if not data:
-            logger.error("No JSON payload provided")
+            logger.error(f"❌ [REQUEST:{request_id}] No JSON payload provided")
             return jsonify({
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
                 "status": "error",
                 "error": "No JSON payload provided",
-                "required_fields": ["authtoken", "test_payload"]
+                "required_fields": ["authtoken", "test_payload"],
+                "example": {
+                    "authtoken": "your_bearer_token",
+                    "test_payload": {"test_name": "sample", "config": {}}
+                }
             }), 400
         
-        # Extract required parameters
+        # Extract parameters
         authtoken = data.get('authtoken')
         test_payload = data.get('test_payload')
-        framework = data.get('framework', 'fps').lower()
+        
+        # Log request parameters (without sensitive data)
+        logger.info(f"🔑 [REQUEST:{request_id}] Auth token: {'✓ Present' if authtoken else '✗ Missing'}")
+        logger.info(f"📋 [REQUEST:{request_id}] Test payload: {'✓ Present' if test_payload else '✗ Missing'}")
+        
+        if test_payload:
+            payload_keys = list(test_payload.keys()) if isinstance(test_payload, dict) else []
+            logger.info(f"📊 [REQUEST:{request_id}] Payload keys: {payload_keys}")
         
         # Validate required parameters
         if not authtoken:
+            logger.error(f"❌ [REQUEST:{request_id}] Missing authtoken")
             return jsonify({
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
                 "status": "error",
-                "error": "authtoken is required",
-                "example": {
-                    "authtoken": "your_bearer_token_here",
-                    "test_payload": {"key": "value"}
-                }
+                "error": "authtoken is required"
             }), 400
         
         if not test_payload:
+            logger.error(f"❌ [REQUEST:{request_id}] Missing test_payload")
             return jsonify({
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
                 "status": "error",
-                "error": "test_payload is required",
-                "example": {
-                    "authtoken": "your_bearer_token_here",
-                    "test_payload": {"key": "value"}
-                }
+                "error": "test_payload is required"
             }), 400
         
-        logger.info(f"Executing {framework} test with payload keys: {list(test_payload.keys())}")
+        # Execute FPS test
+        logger.info(f"⚡ [REQUEST:{request_id}] Executing FPS test submission...")
+        execution_start = datetime.now()
         
-        # Execute based on framework
-        if framework == 'fps':
-            result = executor.submitFPSTest(test_payload, authtoken)
-        elif framework == 'rafi':
-            result = executor.submitRAFITest(test_payload)
-        else:
-            return jsonify({
-                "status": "error",
-                "error": f"Unsupported framework: {framework}",
-                "supported_frameworks": ["fps", "rafi"]
-            }), 400
+        result = submit_fps_test(test_payload, authtoken)
         
-        # Log result status
-        logger.info(f"Test execution result: {result.get('status', 'unknown')}")
+        execution_end = datetime.now()
+        execution_time_ms = int((execution_end - execution_start).total_seconds() * 1000)
         
-        # Return appropriate status code based on result
+        # Log execution result
+        result_status = result.get('status', 'unknown') if result else 'no_result'
+        logger.info(f"📈 [REQUEST:{request_id}] Execution completed - Status: {result_status}, Time: {execution_time_ms}ms")
+        
         if result and result.get('status') == 'success':
-            return jsonify(result), 200
+            logger.info(f"✅ [REQUEST:{request_id}] FPS test submitted successfully")
+            response_data = {
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
+                "status": "success",
+                "execution_time_ms": execution_time_ms,
+                "result": result
+            }
+            return jsonify(response_data), 200
+        
         elif result and result.get('status') == 'error':
+            logger.error(f"❌ [REQUEST:{request_id}] FPS test failed: {result.get('error', 'Unknown error')}")
             status_code = result.get('status_code', 500)
-            return jsonify(result), status_code
-        else:
-            return jsonify({
+            response_data = {
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
                 "status": "error",
-                "error": "No result returned from test execution"
+                "execution_time_ms": execution_time_ms,
+                "result": result
+            }
+            return jsonify(response_data), status_code
+        
+        else:
+            logger.error(f"❌ [REQUEST:{request_id}] No valid result returned")
+            return jsonify({
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
+                "status": "error",
+                "execution_time_ms": execution_time_ms,
+                "error": "No valid result returned from test execution"
             }), 500
     
     except Exception as e:
-        logger.error(f"Internal server error: {str(e)}")
+        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        logger.error(f"💥 [REQUEST:{request_id}] Unexpected error: {str(e)}")
         return jsonify({
+            "request_id": request_id,
+            "timestamp": start_time.isoformat(),
             "status": "error",
+            "execution_time_ms": execution_time_ms,
             "error": f"Internal server error: {str(e)}"
         }), 500
 
-@app.route('/api/v1/submit/fps', methods=['POST'])
-def submit_fps_test():
-    """
-    Submit test to FPS framework.
-    
-    Expected JSON payload:
-    {
-        "test_payload": {...},
-        "authtoken": "bearer_token"
-    }
-    """
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({"error": "No JSON payload provided"}), 400
-        
-        test_payload = data.get('test_payload')
-        authtoken = data.get('authtoken')
-        
-        if not test_payload:
-            return jsonify({"error": "test_payload is required"}), 400
-        
-        if not authtoken:
-            return jsonify({"error": "authtoken is required"}), 400
-        
-        # Submit test to FPS
-        result = executor.submitFPSTest(test_payload, authtoken)
-        
-        # Return appropriate status code based on result
-        if result.get('status') == 'success':
-            return jsonify(result), 200
-        else:
-            return jsonify(result), result.get('status_code', 500)
-    
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": f"Internal server error: {str(e)}"
-        }), 500
-
-@app.route('/api/v1/submit/rafi', methods=['POST'])
-def submit_rafi_test():
-    """
-    Submit test to RAFI framework.
-    
-    Expected JSON payload:
-    {
-        "test_payload": {...}
-    }
-    """
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({"error": "No JSON payload provided"}), 400
-        
-        test_payload = data.get('test_payload')
-        
-        if not test_payload:
-            return jsonify({"error": "test_payload is required"}), 400
-        
-        # Submit test to RAFI
-        result = executor.submitRAFITest(test_payload)
-        
-        if result:
-            return jsonify(result), 200
-        else:
-            return jsonify({
-                "status": "error",
-                "error": "RAFI test submission not implemented yet"
-            }), 501
-    
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": f"Internal server error: {str(e)}"
-        }), 500
 
 @app.errorhandler(404)
 def not_found(error):
