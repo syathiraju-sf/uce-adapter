@@ -1,12 +1,12 @@
-# 🚀 FPS API Client - Heroku Service
+# 🚀 FPS API Client - Simple Heroku Service
 
-A Heroku-deployed Flask service that acts as a proxy/client for the FPS Performance API. This service allows you to make GET requests to retrieve performance run data with proper authentication and logging.
+A super simple Heroku-deployed Flask service with **hardcoded values** - no inputs required! Just call the endpoint and get your FPS performance data.
 
 ## 🎯 Features
 
-- ✅ **GET Performance Run Data**: Retrieve specific performance run results
-- ✅ **Multiple API Formats**: Support for both query parameter and JSON body requests
-- ✅ **Authentication Handling**: Proper bearer token authentication
+- ✅ **Zero Configuration**: All values are hardcoded (run ID + auth token)
+- ✅ **Single Endpoint**: Just `GET /api/v1/fps` - that's it!
+- ✅ **Direct FPS API Call**: Executes your exact curl command
 - ✅ **Request Tracking**: Unique request IDs and execution time logging
 - ✅ **SSL Verification Disabled**: For internal API compatibility
 - ✅ **Heroku Ready**: All deployment files included

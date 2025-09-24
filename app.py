@@ -45,6 +45,19 @@ def health_check():
         }
     })
 
+@app.route('/api/v1/test', methods=['GET'])
+def test_endpoint():
+    """Quick test endpoint that doesn't call external APIs."""
+    return jsonify({
+        "status": "success",
+        "message": "Test endpoint working!",
+        "timestamp": datetime.now().isoformat(),
+        "hardcoded_values": {
+            "run_id": HARDCODED_RUN_ID,
+            "token_length": len(HARDCODED_TOKEN)
+        }
+    })
+
 @app.route('/api/v1/fps', methods=['GET'])
 def get_fps_data():
     """
@@ -69,11 +82,12 @@ def get_fps_data():
         
         logger.info(f"📡 [REQUEST:{request_id}] Calling FPS API: {url}")
         
-        # Make GET request (equivalent to your curl command)
+        # Make GET request with timeout (equivalent to your curl command)
         response = requests.get(
             url=url,
             headers=headers,
-            verify=False  # Equivalent to curl -k flag
+            verify=False,  # Equivalent to curl -k flag
+            timeout=25  # 25 second timeout (less than Heroku's 30s limit)
         )
         
         execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -111,6 +125,19 @@ def get_fps_data():
                 }
             }), response.status_code
     
+    except requests.exceptions.Timeout as e:
+        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        logger.error(f"⏰ [REQUEST:{request_id}] Request timeout after {execution_time_ms}ms")
+        return jsonify({
+            "request_id": request_id,
+            "timestamp": start_time.isoformat(),
+            "status": "error",
+            "execution_time_ms": execution_time_ms,
+            "error": "FPS API request timed out after 25 seconds",
+            "error_type": "timeout",
+            "suggestion": "The FPS API is taking longer than expected. Try again later."
+        }), 504  # Gateway Timeout
+        
     except requests.exceptions.RequestException as e:
         execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
         logger.error(f"💥 [REQUEST:{request_id}] Request error: {str(e)}")
@@ -119,7 +146,8 @@ def get_fps_data():
             "timestamp": start_time.isoformat(),
             "status": "error",
             "execution_time_ms": execution_time_ms,
-            "error": f"Request failed: {str(e)}"
+            "error": f"Request failed: {str(e)}",
+            "error_type": "request_error"
         }), 500
     
     except Exception as e:
