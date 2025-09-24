@@ -37,7 +37,10 @@ def health_check():
         "description": "Simple Heroku service with hardcoded FPS API call",
         "endpoints": {
             "health": "/",
-            "get_fps_data": "/api/v1/fps"
+            "get_fps_data": "/api/v1/fps",
+            "get_fps_fast": "/api/v1/fps/fast", 
+            "test": "/api/v1/test",
+            "connectivity_test": "/api/v1/connectivity"
         },
         "hardcoded_values": {
             "run_id": HARDCODED_RUN_ID,
@@ -57,6 +60,137 @@ def test_endpoint():
             "token_length": len(HARDCODED_TOKEN)
         }
     })
+
+@app.route('/api/v1/connectivity', methods=['GET'])
+def test_connectivity():
+    """
+    Test connectivity to FPS API without making the full request.
+    This helps diagnose if the issue is connectivity or API response time.
+    """
+    request_id = str(uuid.uuid4())
+    start_time = datetime.now()
+    
+    logger.info(f"🔍 [REQUEST:{request_id}] Testing FPS API connectivity")
+    
+    try:
+        import socket
+        from urllib.parse import urlparse
+        
+        # Test 1: DNS Resolution
+        url = f"https://performance.sfproxy.core1.perf1-useast2.aws.sfdc.cl/api/v1/perfruns/{HARDCODED_RUN_ID}"
+        parsed_url = urlparse(url)
+        hostname = parsed_url.hostname
+        
+        dns_start = datetime.now()
+        ip_address = socket.gethostbyname(hostname)
+        dns_time = int((datetime.now() - dns_start).total_seconds() * 1000)
+        
+        # Test 2: TCP Connection
+        tcp_start = datetime.now()
+        sock = socket.create_connection((hostname, 443), timeout=5)
+        tcp_time = int((datetime.now() - tcp_start).total_seconds() * 1000)
+        sock.close()
+        
+        # Test 3: HTTP HEAD (quick test)
+        head_start = datetime.now()
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"bearer {HARDCODED_TOKEN}"
+        }
+        
+        response = requests.head(
+            url=url,
+            headers=headers,
+            verify=False,
+            timeout=(3, 5)
+        )
+        head_time = int((datetime.now() - head_start).total_seconds() * 1000)
+        
+        total_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        logger.info(f"✅ [REQUEST:{request_id}] Connectivity test successful")
+        
+        return jsonify({
+            "request_id": request_id,
+            "timestamp": start_time.isoformat(),
+            "status": "success",
+            "total_time_ms": total_time,
+            "tests": {
+                "dns_resolution": {
+                    "hostname": hostname,
+                    "ip_address": ip_address,
+                    "time_ms": dns_time
+                },
+                "tcp_connection": {
+                    "host": f"{hostname}:443",
+                    "time_ms": tcp_time
+                },
+                "http_head": {
+                    "status_code": response.status_code,
+                    "time_ms": head_time
+                }
+            },
+            "diagnosis": "API endpoint is reachable from this server"
+        }), 200
+        
+    except Exception as e:
+        total_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        logger.error(f"❌ [REQUEST:{request_id}] Connectivity test failed: {str(e)}")
+        
+        return jsonify({
+            "request_id": request_id,
+            "timestamp": start_time.isoformat(),
+            "status": "error",
+            "total_time_ms": total_time,
+            "error": str(e),
+            "diagnosis": "API endpoint is not reachable from this server"
+        }), 500
+
+@app.route('/api/v1/fps/fast', methods=['GET'])
+def get_fps_data_fast():
+    """
+    Fast endpoint that returns sample data when the real API is slow.
+    Use this when you need immediate response.
+    """
+    request_id = str(uuid.uuid4())
+    start_time = datetime.now()
+    
+    logger.info(f"🚀 [REQUEST:{request_id}] Fast FPS endpoint called")
+    
+    # Sample data based on your actual API structure
+    sample_fps_data = {
+        "perfruns": [{
+            "request_id": HARDCODED_RUN_ID,
+            "status": "SAMPLE_DATA",
+            "note": "This is sample data - the real API was too slow",
+            "end_time": "2025-09-23T09:25:44.103558Z",
+            "perfrun_duration": "43m48s",
+            "result_status": "PASSED",
+            "perfrun_tasks": [
+                {"name": "Env Config", "status": "FINISHED", "duration": "5m18s"},
+                {"name": "Perf Run Execution", "status": "FINISHED", "duration": "27m21s"},
+                {"name": "Metric Collection", "status": "FINISHED", "duration": "15m42s"}
+            ]
+        }],
+        "total_count": 1
+    }
+    
+    execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+    
+    return jsonify({
+        "request_id": request_id,
+        "timestamp": start_time.isoformat(),
+        "status": "success",
+        "execution_time_ms": execution_time_ms,
+        "data_type": "sample",
+        "note": "This is sample data returned quickly. Use /api/v1/fps for real data (slower).",
+        "hardcoded_values": {
+            "run_id": HARDCODED_RUN_ID,
+            "token_used": "✓ Not needed for sample data"
+        },
+        "fps_data": sample_fps_data
+    }), 200
 
 @app.route('/api/v1/fps', methods=['GET'])
 def get_fps_data():
@@ -82,15 +216,40 @@ def get_fps_data():
         
         logger.info(f"📡 [REQUEST:{request_id}] Calling FPS API: {url}")
         
-        # Make GET request with timeout (equivalent to your curl command)
+        # Check if we're already approaching timeout limit
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        if elapsed_time > 25:
+            logger.error(f"⏰ [REQUEST:{request_id}] Pre-request timeout check failed - already {elapsed_time:.1f}s elapsed")
+            return jsonify({
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
+                "status": "error",
+                "execution_time_ms": int(elapsed_time * 1000),
+                "error": "Request aborted - approaching Heroku timeout limit",
+                "error_type": "pre_timeout"
+            }), 504
+        
+        # Make GET request with aggressive timeouts (equivalent to your curl command)
         response = requests.get(
             url=url,
             headers=headers,
             verify=False,  # Equivalent to curl -k flag
-            timeout=25  # 25 second timeout (less than Heroku's 30s limit)
+            timeout=(5, 20)  # (connect_timeout=5s, read_timeout=20s) = max 25s total
         )
         
         execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        # Double-check we haven't exceeded time limit
+        if execution_time_ms > 28000:  # 28 seconds
+            logger.error(f"⏰ [REQUEST:{request_id}] Post-request timeout - took {execution_time_ms}ms")
+            return jsonify({
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
+                "status": "error",
+                "execution_time_ms": execution_time_ms,
+                "error": "Request completed but exceeded safe time limit",
+                "error_type": "post_timeout"
+            }), 504
         
         # Log response
         logger.info(f"📈 [REQUEST:{request_id}] FPS API responded: {response.status_code}, Time: {execution_time_ms}ms")
