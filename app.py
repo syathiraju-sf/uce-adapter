@@ -1,9 +1,9 @@
 """
-FPS API Client - Heroku service for accessing FPS performance data.
+FPS API Client - Simple Heroku service with hardcoded values.
 """
 
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 import requests
 import logging
 from datetime import datetime
@@ -23,67 +23,57 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
+# Hardcoded values
+HARDCODED_RUN_ID = "2915731b-62f7-490f-bc24-2b4c583c7ff2"
+HARDCODED_TOKEN = "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJ6VFhTQTFRR1hrNkhFY2YxclJGVktoZVNmeEVOT3JDLUhBRlBPcmkyWm5NIn0.eyJleHAiOjE3NjAyMDAwNzYsImlhdCI6MTc1NzUyMTY3NiwianRpIjoiMWZmNTQ2ODAtZjk0MS00ZDg0LWI5NTAtZDA0NzBlNDMxYmFlIiwiaXNzIjoiaHR0cHM6Ly9xdWFudHVtay1oYS5mb3VuZGF0aW9uLnBlcmYxLXVzZWFzdDIuYXdzLnNmZGMuY2wvYXV0aC9yZWFsbXMvY2VudHJhbHBlcmZmb3VuZGF0aW9uIiwiYXVkIjoiY3BmLW1lcmxpbi1vaWRjIiwic3ViIjoiZjphMnpyZGZMN1N0NjYzUGpGMlhrQmtROnN5YXRoaXJhanUiLCJ0eXAiOiJJRCIsImF6cCI6ImNwZi1tZXJsaW4tb2lkYyIsInNpZCI6IjdhNWIzOGQ3LTA0ZDEtNDc0OC05MDc0LTMwNTE0MzhlZWFiNCIsImF0X2hhc2giOiJmTXZoSTRyWUk4VVNBUDVoajhYd1JRIiwiZW1wbG95ZWVfdHlwZSI6ImVtcGxveWVlIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsib2ZmbGluZV9hY2Nlc3MiLCJkZWZhdWx0LXJvbGVzLWNlbnRyYWxwZXJmZm91bmRhdGlvbiIsInVtYV9hdXRob3JpemF0aW9uIl19LCJuYW1lIjoiU2FjaGluIFlhdGhpcmFqdSBzeWF0aGlyYWp1IiwicHJlZmVycmVkX3VzZXJuYW1lIjoic3lhdGhpcmFqdSIsImdpdmVuX25hbWUiOiJTYWNoaW4gWWF0aGlyYWp1IiwiZmFtaWx5X25hbWUiOiJzeWF0aGlyYWp1IiwiZW1haWwiOiJzeWF0aGlyYWp1QHNhbGVzZm9yY2UuY29tIiwiY2xpZW50SWRlbnRpdHkiOiJjcGYtbWVybGluLW9pZGMifQ.na2y_Xo3vwiIBY7PCf_0fLd5RENGB8F-eQV6acwUhrvy5keFlPVtv1RgXPkd5XtvhxASrlnxlmEGlNt1R2KL0BfxF-2_egOPfivsPu2XkywyYB7qmYuEv0ASYmxbh0eGsr1kSuDm2QKSkPEkSkj-gdsWM_7hnC7VpzUTUXYGFBPBMS43uBV2y7lsZwDWok5v7ZCsWjywWiKqwPX6Cspl2Wkja0dnw5IM31dTc9NdPUDVHyrLA2fHRHgyIO36gJTMqXbjZnkykstw-NR1ZbS5ttQ64wkTQvBhGe5REARvpjqj5-itEyaFavbN99WKbj9lwdVd4Zt84UxFym1V5bIn5w"
+
 @app.route('/')
 def health_check():
     """Health check endpoint."""
     return jsonify({
         "status": "healthy",
-        "service": "FPS API Client",
-        "version": "1.0.0",
-        "description": "Heroku service for accessing FPS performance API",
+        "service": "FPS API Client (Hardcoded)",
+        "version": "2.0.0",
+        "description": "Simple Heroku service with hardcoded FPS API call",
         "endpoints": {
             "health": "/",
-            "get_perfrun": "/api/v1/perfruns/<run_id>",
-            "get_perfrun_proxy": "/api/v1/fps/get"
+            "get_fps_data": "/api/v1/fps"
         },
-        "usage": {
-            "get_perfrun": "GET /api/v1/perfruns/{run_id}?token=your_bearer_token",
-            "get_perfrun_proxy": "POST /api/v1/fps/get with JSON body"
+        "hardcoded_values": {
+            "run_id": HARDCODED_RUN_ID,
+            "token_preview": HARDCODED_TOKEN[:50] + "..."
         }
     })
 
-@app.route('/api/v1/perfruns/<run_id>', methods=['GET'])
-def get_perfrun(run_id):
+@app.route('/api/v1/fps', methods=['GET'])
+def get_fps_data():
     """
-    Get performance run data by ID.
-    
-    Usage: GET /api/v1/perfruns/{run_id}?token=your_bearer_token
+    Simple endpoint that executes the hardcoded curl command.
+    No inputs required - everything is hardcoded.
     """
     request_id = str(uuid.uuid4())
     start_time = datetime.now()
     
-    logger.info(f"🚀 [REQUEST:{request_id}] GET perfrun: {run_id}")
+    logger.info(f"🚀 [REQUEST:{request_id}] FPS API call with hardcoded values")
     
     try:
-        # Get token from query parameter
-        token = request.args.get('token')
+        # FPS API endpoint with hardcoded run ID
+        url = f"https://performance.sfproxy.core1.perf1-useast2.aws.sfdc.cl/api/v1/perfruns/{HARDCODED_RUN_ID}"
         
-        if not token:
-            return jsonify({
-                "request_id": request_id,
-                "timestamp": start_time.isoformat(),
-                "status": "error",
-                "error": "Missing 'token' query parameter",
-                "usage": "GET /api/v1/perfruns/{run_id}?token=your_bearer_token"
-            }), 400
-        
-        # FPS API endpoint
-        url = f"https://performance.sfproxy.core1.perf1-useast2.aws.sfdc.cl/api/v1/perfruns/{run_id}"
-        
-        # Headers
+        # Headers with hardcoded token
         headers = {
             "accept": "application/json",
             "Content-Type": "application/json",
-            "Authorization": f"bearer {token}"
+            "Authorization": f"bearer {HARDCODED_TOKEN}"
         }
         
         logger.info(f"📡 [REQUEST:{request_id}] Calling FPS API: {url}")
         
-        # Make GET request
+        # Make GET request (equivalent to your curl command)
         response = requests.get(
             url=url,
             headers=headers,
-            verify=False
+            verify=False  # Equivalent to curl -k flag
         )
         
         execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -92,12 +82,16 @@ def get_perfrun(run_id):
         logger.info(f"📈 [REQUEST:{request_id}] FPS API responded: {response.status_code}, Time: {execution_time_ms}ms")
         
         if response.status_code == 200:
-            logger.info(f"✅ [REQUEST:{request_id}] Success")
+            logger.info(f"✅ [REQUEST:{request_id}] Success - Retrieved FPS data")
             return jsonify({
                 "request_id": request_id,
                 "timestamp": start_time.isoformat(),
                 "status": "success",
                 "execution_time_ms": execution_time_ms,
+                "hardcoded_values": {
+                    "run_id": HARDCODED_RUN_ID,
+                    "token_used": "✓ Hardcoded token"
+                },
                 "fps_data": response.json()
             }), 200
         else:
@@ -107,6 +101,10 @@ def get_perfrun(run_id):
                 "timestamp": start_time.isoformat(),
                 "status": "error",
                 "execution_time_ms": execution_time_ms,
+                "hardcoded_values": {
+                    "run_id": HARDCODED_RUN_ID,
+                    "token_used": "✓ Hardcoded token"
+                },
                 "fps_error": {
                     "status_code": response.status_code,
                     "message": response.text
@@ -123,113 +121,6 @@ def get_perfrun(run_id):
             "execution_time_ms": execution_time_ms,
             "error": f"Request failed: {str(e)}"
         }), 500
-    
-    except Exception as e:
-        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-        logger.error(f"💥 [REQUEST:{request_id}] Unexpected error: {str(e)}")
-        return jsonify({
-            "request_id": request_id,
-            "timestamp": start_time.isoformat(),
-            "status": "error",
-            "execution_time_ms": execution_time_ms,
-            "error": f"Internal server error: {str(e)}"
-        }), 500
-
-@app.route('/api/v1/fps/get', methods=['POST'])
-def fps_get_proxy():
-    """
-    Proxy endpoint for FPS API GET requests.
-    
-    Expected JSON payload:
-    {
-        "run_id": "2915731b-62f7-490f-bc24-2b4c583c7ff2",
-        "token": "your_bearer_token"
-    }
-    """
-    request_id = str(uuid.uuid4())
-    start_time = datetime.now()
-    
-    logger.info(f"🚀 [REQUEST:{request_id}] FPS GET Proxy called")
-    
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({
-                "request_id": request_id,
-                "timestamp": start_time.isoformat(),
-                "status": "error",
-                "error": "No JSON payload provided",
-                "expected": {
-                    "run_id": "performance_run_uuid",
-                    "token": "bearer_token"
-                }
-            }), 400
-        
-        run_id = data.get('run_id')
-        token = data.get('token')
-        
-        if not run_id:
-            return jsonify({
-                "request_id": request_id,
-                "timestamp": start_time.isoformat(),
-                "status": "error",
-                "error": "Missing 'run_id' in JSON payload"
-            }), 400
-        
-        if not token:
-            return jsonify({
-                "request_id": request_id,
-                "timestamp": start_time.isoformat(),
-                "status": "error",
-                "error": "Missing 'token' in JSON payload"
-            }), 400
-        
-        # FPS API endpoint
-        url = f"https://performance.sfproxy.core1.perf1-useast2.aws.sfdc.cl/api/v1/perfruns/{run_id}"
-        
-        # Headers
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"bearer {token}"
-        }
-        
-        logger.info(f"📡 [REQUEST:{request_id}] Calling FPS API for run_id: {run_id}")
-        
-        # Make GET request
-        response = requests.get(
-            url=url,
-            headers=headers,
-            verify=False
-        )
-        
-        execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-        
-        # Log response
-        logger.info(f"📈 [REQUEST:{request_id}] FPS API responded: {response.status_code}, Time: {execution_time_ms}ms")
-        
-        if response.status_code == 200:
-            logger.info(f"✅ [REQUEST:{request_id}] Success")
-            return jsonify({
-                "request_id": request_id,
-                "timestamp": start_time.isoformat(),
-                "status": "success",
-                "execution_time_ms": execution_time_ms,
-                "fps_data": response.json()
-            }), 200
-        else:
-            logger.error(f"❌ [REQUEST:{request_id}] FPS API error: {response.status_code}")
-            return jsonify({
-                "request_id": request_id,
-                "timestamp": start_time.isoformat(),
-                "status": "error",
-                "execution_time_ms": execution_time_ms,
-                "fps_error": {
-                    "status_code": response.status_code,
-                    "message": response.text
-                }
-            }), response.status_code
     
     except Exception as e:
         execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
